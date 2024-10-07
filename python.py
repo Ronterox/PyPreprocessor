@@ -1,4 +1,3 @@
-import pymod
 import pybye
 
 """%
@@ -11,5 +10,4 @@ optimized = false
 print("Hi, I'm Python")
 """%end%"""
 
-pymod.hi()
 pybye.bye()

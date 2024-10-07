@@ -24,14 +24,14 @@ fn preprocess(filepath: &str, lua: &Lua) -> LuaResult<()> {
 
     let mut new_file = file[0..opening[0]].to_string();
 
-    new_file.lines().for_each(|line| {
-        let (imp, name) = line.split_once(' ').unwrap_or(("", ""));
+    file.lines().for_each(|line| {
+        let (imp, name) = line.trim().split_once(' ').unwrap_or(("", ""));
         let files = lua.globals().get::<_, mlua::Table>("files").unwrap();
 
         if imp == "import" && !files.contains_key(name).unwrap() {
             let path = format!("{name}.py");
-            preprocess(&path, lua).unwrap();
             files.set(name, true).unwrap();
+            preprocess(&path, lua).unwrap();
         }
     });
 
@@ -42,14 +42,14 @@ fn preprocess(filepath: &str, lua: &Lua) -> LuaResult<()> {
         if open_syntax != "" {
             let body = &file[body_pos..**a];
             let code = format!("{open_syntax} return [[{body}]] {code}");
+
             if let Some(result) = lua.load(code).eval::<Option<String>>().unwrap() {
                 new_file.push_str(&result);
             }
+
             open_syntax = "";
         } else if lua.load(code).exec().is_err() {
             open_syntax = code;
-        } else {
-            new_file.push_str(&file[body_pos..**a]);
         }
 
         body_pos = *b + size;
