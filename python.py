@@ -1,4 +1,5 @@
 import pybye
+import pymod
 
 """%
 print("Preprocessing...")
@@ -10,4 +11,5 @@ optimized = false
 print("Hi, I'm Python")
 """%end%"""
 
+pymod.hi()
 pybye.bye()

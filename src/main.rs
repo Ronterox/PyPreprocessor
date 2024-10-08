@@ -7,14 +7,8 @@ fn preprocess(filepath: &str, lua: &Lua) -> LuaResult<()> {
     }
 
     let file = std::fs::read_to_string(filepath).expect("Unable to read file");
-    let opening = file
-        .match_indices("\"\"\"%")
-        .map(|(i, _)| i)
-        .collect::<Vec<_>>();
-    let closing = file
-        .match_indices("%\"\"\"")
-        .map(|(i, _)| i)
-        .collect::<Vec<_>>();
+    let opening: Vec<usize> = file.match_indices("\"\"\"%").map(|(i, _)| i).collect();
+    let closing: Vec<usize> = file.match_indices("%\"\"\"").map(|(i, _)| i).collect();
     let size = 4;
 
     let pairs = opening.iter().zip(closing.iter()).collect::<Vec<_>>();
@@ -24,32 +18,45 @@ fn preprocess(filepath: &str, lua: &Lua) -> LuaResult<()> {
 
     let mut new_file = file[0..opening[0]].to_string();
 
-    file.lines().for_each(|line| {
-        let (imp, name) = line.trim().split_once(' ').unwrap_or(("", ""));
+    let check_module = |name: &str| {
         let files = lua.globals().get::<_, mlua::Table>("files").unwrap();
 
-        if imp == "import" && !files.contains_key(name).unwrap() {
+        if !files.contains_key(name).unwrap() {
             let path = format!("{name}.py");
             files.set(name, true).unwrap();
             preprocess(&path, lua).unwrap();
+        }
+    };
+
+    file.lines().for_each(|line| {
+        let words = line.split_whitespace().collect::<Vec<_>>();
+        if words.is_empty() {
+            return;
+        }
+
+        match words[0] {
+            "import" | "from" => check_module(words[1]),
+            _ => (),
         }
     });
 
     pairs.iter().enumerate().for_each(|(i, (a, b))| {
         let code = &file[(*a + size)..**b];
+        let body = &file[body_pos..**a];
+
         println!("[{filepath}:{i}] lua > {code}");
 
         if open_syntax != "" {
-            let body = &file[body_pos..**a];
-            let code = format!("{open_syntax} return [[{body}]] {code}");
-
+            let code = format!("{open_syntax} return [[\n{body}]] {code}");
             if let Some(result) = lua.load(code).eval::<Option<String>>().unwrap() {
                 new_file.push_str(&result);
             }
-
             open_syntax = "";
         } else if lua.load(code).exec().is_err() {
+            new_file.push_str(&body);
             open_syntax = code;
+        } else {
+            new_file.push_str(&body);
         }
 
         body_pos = *b + size;
@@ -65,8 +72,7 @@ fn preprocess(filepath: &str, lua: &Lua) -> LuaResult<()> {
 
 fn main() -> LuaResult<()> {
     let lua = Lua::new();
-    let files = lua.create_table()?;
-    lua.globals().set("files", files)?;
+    lua.globals().set("files", lua.create_table()?)?;
 
     preprocess("python.py", &lua)?;
     std::process::Command::new("python3")

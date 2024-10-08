@@ -2,7 +2,7 @@
 
 
 def bye():
-    import pymod
+    from pymod import hi
 
     print("Bye I'm a module")
-    pymod.hi()
+    hi()
