@@ -1,10 +1,10 @@
-import pybye
-import pymod
+import sources.pybye as pybye
+import sources.pymod as pymod
 
 """%
 print("Preprocessing...")
-debug = true
-optimized = false
+debug = false
+optimized = true
 %"""
 
 """%if debug then%"""
