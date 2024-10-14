@@ -1,6 +1,10 @@
 import sources.pybye as pybye
 import sources.pymod as pymod
 
+# TODO: Try with no preprocessing stuff inside of a file
+# FIX: Commenting preprocessing
+
+
 """%
 print("Preprocessing...")
 debug = false

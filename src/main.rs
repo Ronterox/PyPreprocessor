@@ -77,13 +77,22 @@ fn preprocess(filepath: &str, lua: &Lua) -> LuaResult<()> {
     Ok(())
 }
 
-fn main() -> LuaResult<()> {
+fn run_preprocessor(filepath: &str) -> LuaResult<()> {
     let lua = Lua::new();
-    lua.globals().set("files", lua.create_table()?)?;
 
-    preprocess("python.py", &lua)?;
+    lua.globals().set("files", lua.create_table()?)?;
+    preprocess(filepath, &lua)?;
+
+    Ok(())
+}
+
+fn main() -> LuaResult<()> {
+    let filepath = std::env::args().nth(1).expect("No filepath provided");
+    run_preprocessor(&filepath)?;
+
+    #[cfg(debug_assertions)]
     std::process::Command::new("python3")
-        .arg("output/python.py")
+        .arg(format!("output/{filepath}"))
         .spawn()?;
 
     Ok(())
