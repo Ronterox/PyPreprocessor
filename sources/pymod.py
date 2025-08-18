@@ -1,5 +1,7 @@
 """%print("Slow loading pymod...")%"""
 
+import pybye as bye
+
 
 def hi():
     print("Hi I'm a module")
@@ -8,3 +10,7 @@ def hi():
         if i % 100 == 0:
             print("Costly operation: " + str(i))
     """%end%"""
+
+
+hi()
+bye.bye()
