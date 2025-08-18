@@ -1,6 +1,6 @@
 use mlua::prelude::*;
 
-const DEBUG: bool = false;
+const DEBUG: bool = true;
 const OPEN_CODE: &str = "\"\"\"%";
 const CLOSE_CODE: &str = "%\"\"\"";
 
@@ -72,20 +72,19 @@ fn preprocess(filepath: &str, lua: &Lua) -> LuaResult<()> {
     });
     file_content.push_str(&file[closing.last().unwrap_or(&&0) + size..]);
 
-    let filepath = format!("output/{filepath}");
-
-    if let Some(parent) = std::path::Path::new(&filepath).parent() {
+    let fullpath = format!("output/{filepath}");
+    if let Some(parent) = std::path::Path::new(&fullpath).parent() {
         maperror!(
             std::fs::create_dir_all(parent),
-            "Unable to create directory: {filepath}"
+            "Unable to create directory: {fullpath}"
         );
     } else {
-        return runtimeerror!("Unable to get parent: {filepath}");
+        return runtimeerror!("Unable to get parent: {fullpath}");
     }
 
     maperror!(
-        std::fs::write(&filepath, file_content),
-        "Unable to write file: {filepath}"
+        std::fs::write(&fullpath, file_content),
+        "Unable to write file: {fullpath}"
     );
 
     file.lines().try_for_each(|line| -> LuaResult<()> {
@@ -95,7 +94,17 @@ fn preprocess(filepath: &str, lua: &Lua) -> LuaResult<()> {
         }
 
         match words[0] {
-            "import" | "from" => check_module(&words[1].replace(".", "/")),
+            "import" | "from" => {
+                let path = if words[1].contains(".") {
+                    words[1].replace(".", "/")
+                } else {
+                    match std::path::Path::new(&filepath).parent() {
+                        Some(parent) => format!("{}/{}", parent.to_str().unwrap(), words[1]),
+                        None => words[1].to_string(),
+                    }
+                };
+                check_module(&path)
+            }
             _ => Ok(()),
         }
     })
@@ -113,12 +122,12 @@ fn main() -> LuaResult<()> {
     if let Some(filepath) = filepath {
         if let Err(e) = run_preprocessor(&filepath) {
             eprintln!("{e}");
+        } else {
+            #[cfg(debug_assertions)]
+            std::process::Command::new("python3")
+                .arg(format!("output/{filepath}"))
+                .spawn()?;
         }
-
-        #[cfg(debug_assertions)]
-        std::process::Command::new("python3")
-            .arg(format!("output/{filepath}"))
-            .spawn()?;
     } else {
         eprintln!("Error: No filepath provided as parameter");
     }
