@@ -1,10 +1,6 @@
 """%
 print("Slow loading pymod...")
-optimize = true
 %"""
-
-import pybye as bye
-import os
 
 
 def hi():
@@ -14,8 +10,3 @@ def hi():
         if i % 100 == 0:
             print("Costly operation: " + str(i))
     """%end%"""
-
-
-print(f"Running on {os.getcwd()}")
-hi()
-bye.bye()

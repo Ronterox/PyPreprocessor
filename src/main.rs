@@ -55,7 +55,9 @@ fn preprocess(filepath: &str, lua: &Lua, module: bool) -> LuaResult<()> {
 
     let size = if !opening.is_empty() {
         OPEN_CODE.chars().count()
-    } else { 0 };
+    } else {
+        0
+    };
 
     let pairs = opening.iter().zip(closing.iter()).collect::<Vec<_>>();
 
@@ -71,10 +73,9 @@ fn preprocess(filepath: &str, lua: &Lua, module: bool) -> LuaResult<()> {
     let check_module = |name: &str| -> LuaResult<()> {
         let files = lua.globals().get::<_, mlua::Table>("files").unwrap();
 
-        if !files.contains_key(name).unwrap() {
-            let path = format!("{name}.py");
+        if !files.contains_key(name.replace(".py", "")).unwrap() {
             files.set(name, true).unwrap();
-            preprocess(&path, lua, true)?
+            preprocess(&name, lua, true)?
         }
 
         Ok(())
@@ -88,7 +89,7 @@ fn preprocess(filepath: &str, lua: &Lua, module: bool) -> LuaResult<()> {
             println!("[{filepath}:{i}] lua > {code}");
         }
 
-        if open_syntax != "" {
+        if !open_syntax.is_empty() {
             let code = format!("{open_syntax} return [[\n{body}]] {code}");
             if let Some(result) = lua.load(code).eval::<Option<String>>().unwrap() {
                 file_content.push_str(&result);
@@ -132,11 +133,28 @@ fn preprocess(filepath: &str, lua: &Lua, module: bool) -> LuaResult<()> {
                     words[1].replace(".", "/")
                 } else {
                     match std::path::Path::new(&filepath).parent() {
-                        Some(parent) => format!("{}/{}", parent.to_str().unwrap(), words[1]),
-                        None => words[1].to_string(),
+                        Some(parent) if !parent.as_os_str().is_empty() => {
+                            format!("{}/{}", parent.to_str().unwrap(), words[1])
+                        }
+                        _ => words[1].to_string(),
                     }
                 };
-                check_module(&path)
+
+                if std::path::Path::new(&path).is_dir() {
+                    std::fs::read_dir(path).unwrap().try_for_each(|entry| {
+                        if let Ok(path) = entry {
+                            match path.path().extension() {
+                                Some(ext) if ext == "py" => {
+                                    return check_module(&path.path().to_str().unwrap());
+                                }
+                                _ => {}
+                            }
+                        }
+                        Ok(())
+                    })
+                } else {
+                    check_module(format!("{path}.py").as_str())
+                }
             }
             _ => Ok(()),
         }
