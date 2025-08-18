@@ -4,10 +4,24 @@ const DEBUG: bool = true;
 const OPEN_CODE: &str = "\"\"\"%";
 const CLOSE_CODE: &str = "%\"\"\"";
 
+macro_rules! pprintln {
+    ($($args: expr),*) => {
+        println!(
+            r#"
+        ┌─────────────────────────────────────────────────────────────────────────────────┐
+        │ ┌──────────────────────────────────────────────────────────────────────────────┐│
+        │ │ {line}
+        │ └──────────────────────────────────────────────────────────────────────────────┘│
+        └─────────────────────────────────────────────────────────────────────────────────┘
+        "#,
+            line = format!("{}", $($args),*)
+        )
+    };
+}
+
 macro_rules! trace {
     ($($args: expr),*) => {
-        print!("[{}:{}]", file!(), line!());
-        $(print!(" rust > {}: {}", stringify!($args), $args);)*
+        $(pprintln!(format!("rust > {}: {}", stringify!($args), $args));)*
         println!(""); // to get a new line at the end
     }
 }
@@ -31,10 +45,12 @@ fn preprocess(filepath: &str, lua: &Lua, module: bool) -> LuaResult<()> {
     if module && std::fs::metadata(filepath).is_err() {
         return match filepath.split('/').last() {
             Some(filename) => {
-                println!(
-                    "Skipping '{}' module. Not a local file",
-                    filename.replace(".py", "")
-                );
+                if DEBUG {
+                    println!(
+                        "Skipping '{}' module. Not a local file",
+                        filename.replace(".py", "")
+                    );
+                }
                 Ok(())
             }
             None => runtimeerror!("Unable to get filename"),
@@ -86,7 +102,12 @@ fn preprocess(filepath: &str, lua: &Lua, module: bool) -> LuaResult<()> {
         let body = &file[body_pos..**a];
 
         if DEBUG {
-            println!("[{filepath}:{i}] lua > {code}");
+            println!("┌─────────────────────────────────────────────────────────────────────────────────┐");
+            println!("│                                                                                 │");
+            println!("│ [{filepath}:{i}] lua >");
+            code.lines().for_each(|line| println!("│     {line}"));
+            println!("│                                                                                 │");
+            println!("└─────────────────────────────────────────────────────────────────────────────────┘");
         }
 
         if !open_syntax.is_empty() {
@@ -171,14 +192,16 @@ fn run_preprocessor(filepath: &str) -> LuaResult<()> {
 fn main() -> LuaResult<()> {
     let filepath = std::env::args().nth(1);
     if let Some(filepath) = filepath {
+        pprintln!(format!("Parsing: {filepath}"));
         if let Err(e) = run_preprocessor(&filepath) {
             eprintln!("{e}");
-        } else {
+        } else if DEBUG {
             #[cfg(debug_assertions)]
             std::process::Command::new("python3")
                 .arg(format!("output/{filepath}"))
                 .spawn()?;
         }
+        pprintln!("Finished.");
     } else {
         eprintln!("Error: No filepath provided as parameter");
     }
