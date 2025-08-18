@@ -4,6 +4,14 @@ const DEBUG: bool = true;
 const OPEN_CODE: &str = "\"\"\"%";
 const CLOSE_CODE: &str = "%\"\"\"";
 
+macro_rules! trace {
+    ($($args: expr),*) => {
+        print!("[{}:{}]", file!(), line!());
+        $(print!(" rust > {}: {}", stringify!($args), $args);)*
+        println!(""); // to get a new line at the end
+    }
+}
+
 macro_rules! runtimeerror {
     ($m:expr) => {
         Err(mlua::Error::RuntimeError(format!($m)))
@@ -19,11 +27,29 @@ macro_rules! maperror {
     };
 }
 
-fn preprocess(filepath: &str, lua: &Lua) -> LuaResult<()> {
+fn preprocess(filepath: &str, lua: &Lua, module: bool) -> LuaResult<()> {
+    if module && std::fs::metadata(filepath).is_err() {
+        return match filepath.split('/').last() {
+            Some(filename) => {
+                println!(
+                    "Skipping '{}' module. Not a local file",
+                    filename.replace(".py", "")
+                );
+                Ok(())
+            }
+            None => runtimeerror!("Unable to get filename"),
+        };
+    }
+
+    if DEBUG {
+        trace!(filepath);
+    }
+
     let file = maperror!(
         std::fs::read_to_string(filepath),
-        "Unable to read/find file: {filepath}"
+        "Unable to read file: {filepath}"
     );
+
     let opening: Vec<usize> = file.match_indices(OPEN_CODE).map(|(i, _)| i).collect();
     let closing: Vec<usize> = file.match_indices(CLOSE_CODE).map(|(i, _)| i).collect();
 
@@ -39,9 +65,9 @@ fn preprocess(filepath: &str, lua: &Lua) -> LuaResult<()> {
         let files = lua.globals().get::<_, mlua::Table>("files").unwrap();
 
         if !files.contains_key(name).unwrap() {
-            let path = format!("./{name}.py");
+            let path = format!("{name}.py");
             files.set(name, true).unwrap();
-            preprocess(&path, lua)?
+            preprocess(&path, lua, true)?
         }
 
         Ok(())
@@ -114,7 +140,7 @@ fn preprocess(filepath: &str, lua: &Lua) -> LuaResult<()> {
 fn run_preprocessor(filepath: &str) -> LuaResult<()> {
     let lua = Lua::new();
     lua.globals().set("files", lua.create_table()?)?;
-    preprocess(filepath, &lua)
+    preprocess(filepath, &lua, false)
 }
 
 fn main() -> LuaResult<()> {

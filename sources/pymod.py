@@ -1,6 +1,7 @@
 """%print("Slow loading pymod...")%"""
 
 import pybye as bye
+import os
 
 
 def hi():
@@ -12,5 +13,6 @@ def hi():
     """%end%"""
 
 
+print(f"Running on {os.getcwd()}")
 hi()
 bye.bye()
