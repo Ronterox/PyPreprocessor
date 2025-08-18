@@ -53,13 +53,20 @@ fn preprocess(filepath: &str, lua: &Lua, module: bool) -> LuaResult<()> {
     let opening: Vec<usize> = file.match_indices(OPEN_CODE).map(|(i, _)| i).collect();
     let closing: Vec<usize> = file.match_indices(CLOSE_CODE).map(|(i, _)| i).collect();
 
-    let size = OPEN_CODE.chars().count();
+    let size = if !opening.is_empty() {
+        OPEN_CODE.chars().count()
+    } else { 0 };
+
     let pairs = opening.iter().zip(closing.iter()).collect::<Vec<_>>();
 
     let mut open_syntax = "";
     let mut body_pos = 0;
 
-    let mut file_content = file[0..opening[0]].to_string();
+    let mut file_content = if opening.is_empty() {
+        "".to_string()
+    } else {
+        file[0..opening[0]].to_string()
+    };
 
     let check_module = |name: &str| -> LuaResult<()> {
         let files = lua.globals().get::<_, mlua::Table>("files").unwrap();
