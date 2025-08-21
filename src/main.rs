@@ -76,8 +76,7 @@ fn preprocess(filepath: &str, lua: &Lua, module: bool) -> LuaResult<()> {
     };
 
     let pairs = opening.iter().zip(closing.iter()).collect::<Vec<_>>();
-
-    let mut open_syntax = "";
+    let mut open_syntax: Option<String> = None;
     let mut body_pos = 0;
 
     let mut file_content = if opening.is_empty() {
@@ -110,21 +109,31 @@ fn preprocess(filepath: &str, lua: &Lua, module: bool) -> LuaResult<()> {
             println!("└─────────────────────────────────────────────────────────────────────────────────┘");
         }
 
-        if !open_syntax.is_empty() {
-            let code = format!("{open_syntax} return [[\n{body}]] {code}");
-            if let Some(result) = lua.load(code).eval::<Option<String>>().unwrap() {
-                file_content.push_str(&result);
+        if let Some(open) = &open_syntax {
+            let code = format!("{open} return [[\n{body}]] {code}");
+            let result = lua.load(&code).eval::<Option<String>>();
+            match result {
+                Ok(result) => {
+                    if let Some(result) = result { file_content.push_str(&result); }
+                    open_syntax = None;
+                }
+                Err(e) if e.to_string().contains("expected") => { open_syntax = Some(code.to_string()); }
+                Err(e) => { eprintln!("Error: {e}"); }
             }
-            open_syntax = "";
         } else if lua.load(code).exec().is_err() {
             file_content.push_str(&body);
-            open_syntax = code;
+            open_syntax = Some(code.to_string());
         } else {
             file_content.push_str(&body);
         }
 
         body_pos = *b + size;
     });
+
+    if let Some(open) = open_syntax {
+        return runtimeerror!("Unclosed code block -> {open}");
+    }
+
     file_content.push_str(&file[closing.last().unwrap_or(&&0) + size..]);
 
     let fullpath = format!("output/{filepath}");
@@ -196,12 +205,14 @@ fn main() -> LuaResult<()> {
         if let Err(e) = run_preprocessor(&filepath) {
             eprintln!("{e}");
         } else if DEBUG {
+            pprintln!("Done. Now running with python3...");
             #[cfg(debug_assertions)]
             std::process::Command::new("python3")
                 .arg(format!("output/{filepath}"))
                 .spawn()?;
+        } else {
+            pprintln!("Done.");
         }
-        pprintln!("Finished.");
     } else {
         eprintln!("Error: No filepath provided as parameter");
     }
