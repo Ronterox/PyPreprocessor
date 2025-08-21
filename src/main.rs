@@ -1,12 +1,12 @@
 use mlua::prelude::*;
 
 const DEBUG: bool = true;
+const DEPTH: usize = 5;
+const OUTPUT_DIR: &str = "output";
 
 const OPEN_COMMENT: &str = "\"\"\"";
 const CLOSE_COMMENT: &str = "\"\"\"";
 const LUA_CODE: &str = "%";
-
-const OUTPUT_DIR: &str = "output";
 
 macro_rules! pprintln {
     ($($args: expr),*) => {
@@ -45,7 +45,13 @@ macro_rules! maperror {
     };
 }
 
-fn preprocess(filepath: &str, lua: &Lua, level: usize, module: bool) -> LuaResult<()> {
+fn preprocess(
+    filepath: &str,
+    lua: &Lua,
+    depth: usize,
+    module: bool,
+    overwrite: bool,
+) -> LuaResult<()> {
     if module && std::fs::metadata(filepath).is_err() {
         return match filepath.split('/').last() {
             Some(filename) => {
@@ -62,7 +68,7 @@ fn preprocess(filepath: &str, lua: &Lua, level: usize, module: bool) -> LuaResul
     }
 
     if DEBUG {
-        trace!(filepath);
+        trace!(depth, filepath);
     }
 
     let file = maperror!(
@@ -70,8 +76,8 @@ fn preprocess(filepath: &str, lua: &Lua, level: usize, module: bool) -> LuaResul
         "Unable to read file: {filepath}"
     );
 
-    let open = format!("{OPEN_COMMENT}{}", LUA_CODE.repeat(level));
-    let close = format!("{}{CLOSE_COMMENT}", LUA_CODE.repeat(level));
+    let open = format!("{OPEN_COMMENT}{}", LUA_CODE.repeat(depth));
+    let close = format!("{}{CLOSE_COMMENT}", LUA_CODE.repeat(depth));
     let opening: Vec<usize> = file.match_indices(&open).map(|(i, _)| i).collect();
     let closing: Vec<usize> = file.match_indices(&close).map(|(i, _)| i).collect();
 
@@ -82,21 +88,17 @@ fn preprocess(filepath: &str, lua: &Lua, level: usize, module: bool) -> LuaResul
     };
 
     let pairs = opening.iter().zip(closing.iter()).collect::<Vec<_>>();
+    let mut file_content = String::new();
     let mut open_syntax: Option<String> = None;
     let mut body_pos = 0;
 
-    let mut file_content = if opening.is_empty() {
-        "".to_string()
-    } else {
-        file[0..opening[0]].to_string()
-    };
-
     let check_module = |name: &str| -> LuaResult<()> {
         let files = lua.globals().get::<_, mlua::Table>("files").unwrap();
+        let name = format!("{depth}_{}", name.replace(".py", ""));
 
-        if !files.contains_key(name.replace(".py", "")).unwrap() {
-            files.set(name, true).unwrap();
-            preprocess(&name, lua, level, true)?
+        if !files.contains_key(name.as_str()).unwrap() {
+            files.set(name.as_str(), true).unwrap();
+            preprocess(&name, lua, depth, true, overwrite)?
         }
 
         Ok(())
@@ -142,7 +144,12 @@ fn preprocess(filepath: &str, lua: &Lua, level: usize, module: bool) -> LuaResul
 
     file_content.push_str(&file[closing.last().unwrap_or(&&0) + size..]);
 
-    let fullpath = format!("{OUTPUT_DIR}/{filepath}");
+    let fullpath = if overwrite {
+        filepath.to_string()
+    } else {
+        format!("{OUTPUT_DIR}/{filepath}")
+    };
+
     if let Some(parent) = std::path::Path::new(&fullpath).parent() {
         maperror!(
             std::fs::create_dir_all(parent),
@@ -201,8 +208,17 @@ fn preprocess(filepath: &str, lua: &Lua, level: usize, module: bool) -> LuaResul
 fn run_preprocessor(filepath: &str) -> LuaResult<()> {
     let lua = Lua::new();
     lua.globals().set("files", lua.create_table()?)?;
-    preprocess(filepath, &lua, 2, false)?;
-    preprocess(filepath, &lua, 1, false)
+
+    preprocess(filepath, &lua, DEPTH, false, false)?;
+    (1..DEPTH).rev().try_for_each(|depth| {
+        preprocess(
+            &format!("{OUTPUT_DIR}/{filepath}"),
+            &lua,
+            depth,
+            false,
+            true,
+        )
+    })
 }
 
 fn main() -> LuaResult<()> {

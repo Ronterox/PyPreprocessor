@@ -2,7 +2,7 @@ from sources import pybye, pymod
 import os
 
 """%
-optimize = true
+optimize = false
 local f = io.open("python.py", "r")
 if not f then error("File not found") end
 
@@ -17,7 +17,9 @@ end
 """%if optimize then%"""
 name = "optimize"
 
+"""%%if false then%%"""
 print(f"Hi, I'm {name}")
+"""%%end%%"""
 
 print(f"Running on {os.getcwd()}")
 """%else%"""
