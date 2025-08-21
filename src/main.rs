@@ -1,6 +1,6 @@
 use mlua::prelude::*;
 
-const DEBUG: bool = true;
+const DEBUG: bool = false;
 const DEPTH: usize = 5;
 const OUTPUT_DIR: &str = "output";
 
@@ -92,8 +92,6 @@ fn preprocess(
     let mut open_syntax: Option<String> = None;
     let mut body_pos = 0;
 
-    dbg!(&filepath);
-
     let check_module = |name: &str| -> LuaResult<()> {
         let files = lua.globals().get::<_, mlua::Table>("files").unwrap();
         let key = format!("{depth}_{}", name.replace(".py", ""));
@@ -110,6 +108,7 @@ fn preprocess(
         let code = &file[(*a + size)..**b];
         let body = &file[body_pos..**a];
 
+        // TODO: Highlight the error line
         if DEBUG {
             println!("┌─────────────────────────────────────────────────────────────────────────────────┐");
             println!("│                                                                                 │");
