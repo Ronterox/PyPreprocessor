@@ -2,8 +2,8 @@ from sources import pybye, pymod
 import os
 
 """%
-optimize = true
-local f = io.open("confg.yaml", "r")
+optimize = false
+local f = io.open("config.yaml", "r")
 if not f then error("File not found") end
 
 for line in f:lines() do
@@ -17,7 +17,7 @@ end
 """%if optimize then%"""
 name = "optimize"
 
-"""%%if false then%%"""
+"""%%if true then%%"""
 print(f"Hi, I'm {name}")
 """%%end%%"""
 

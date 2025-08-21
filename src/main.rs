@@ -92,12 +92,14 @@ fn preprocess(
     let mut open_syntax: Option<String> = None;
     let mut body_pos = 0;
 
+    dbg!(&filepath);
+
     let check_module = |name: &str| -> LuaResult<()> {
         let files = lua.globals().get::<_, mlua::Table>("files").unwrap();
-        let name = format!("{depth}_{}", name.replace(".py", ""));
+        let key = format!("{depth}_{}", name.replace(".py", ""));
 
-        if !files.contains_key(name.as_str()).unwrap() {
-            files.set(name.as_str(), true).unwrap();
+        if !files.contains_key(key.as_str()).unwrap() {
+            files.set(key.as_str(), true).unwrap();
             preprocess(&name, lua, depth, true, overwrite)?
         }
 
