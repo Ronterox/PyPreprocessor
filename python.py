@@ -2,8 +2,8 @@ from sources import pybye, pymod
 import os
 
 """%
-optimize = false
-local f = io.open("python.py", "r")
+optimize = true
+local f = io.open("confg.yaml", "r")
 if not f then error("File not found") end
 
 for line in f:lines() do

@@ -104,7 +104,7 @@ fn preprocess(
         Ok(())
     };
 
-    pairs.iter().enumerate().for_each(|(i, (a, b))| {
+    let result = pairs.iter().enumerate().try_for_each(|(i, (a, b))| {
         let code = &file[(*a + size)..**b];
         let body = &file[body_pos..**a];
 
@@ -126,18 +126,22 @@ fn preprocess(
                     open_syntax = None;
                 }
                 Err(e) if e.to_string().contains("expected") => { open_syntax = Some(code.to_string()); }
-                Err(e) => { eprintln!("Error: {e}"); }
+                Err(e) => { Err(e)? }
             }
-        } else if lua.load(code).exec().is_err() {
+        } else if let Err(e) = lua.load(code).exec() {
             file_content.push_str(&body);
             open_syntax = Some(code.to_string());
+            if !e.to_string().contains("expected") { Err(e)? }
         } else {
             file_content.push_str(&body);
         }
 
         body_pos = *b + size;
+
+        Ok(())
     });
 
+    if let Err(e) = result { return Err(e); }
     if let Some(open) = open_syntax {
         return runtimeerror!("Unclosed code block -> {open}");
     }

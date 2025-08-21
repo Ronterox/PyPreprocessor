@@ -1,0 +1,8 @@
+qmas:
+  name: rickow
+  age: 48
+  verified: true
+  items:
+  - shoes
+  - socks
+  - shirt
