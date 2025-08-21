@@ -16,7 +16,9 @@ end
 
 """%if optimize then%"""
 name = "optimize"
+
 print(f"Hi, I'm {name}")
+
 print(f"Running on {os.getcwd()}")
 """%else%"""
 print("Hi, I'm not optimized")

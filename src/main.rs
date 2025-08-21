@@ -1,8 +1,12 @@
 use mlua::prelude::*;
 
 const DEBUG: bool = true;
-const OPEN_CODE: &str = "\"\"\"%";
-const CLOSE_CODE: &str = "%\"\"\"";
+
+const OPEN_COMMENT: &str = "\"\"\"";
+const CLOSE_COMMENT: &str = "\"\"\"";
+const LUA_CODE: &str = "%";
+
+const OUTPUT_DIR: &str = "output";
 
 macro_rules! pprintln {
     ($($args: expr),*) => {
@@ -41,7 +45,7 @@ macro_rules! maperror {
     };
 }
 
-fn preprocess(filepath: &str, lua: &Lua, module: bool) -> LuaResult<()> {
+fn preprocess(filepath: &str, lua: &Lua, level: usize, module: bool) -> LuaResult<()> {
     if module && std::fs::metadata(filepath).is_err() {
         return match filepath.split('/').last() {
             Some(filename) => {
@@ -66,11 +70,13 @@ fn preprocess(filepath: &str, lua: &Lua, module: bool) -> LuaResult<()> {
         "Unable to read file: {filepath}"
     );
 
-    let opening: Vec<usize> = file.match_indices(OPEN_CODE).map(|(i, _)| i).collect();
-    let closing: Vec<usize> = file.match_indices(CLOSE_CODE).map(|(i, _)| i).collect();
+    let open = format!("{OPEN_COMMENT}{}", LUA_CODE.repeat(level));
+    let close = format!("{}{CLOSE_COMMENT}", LUA_CODE.repeat(level));
+    let opening: Vec<usize> = file.match_indices(&open).map(|(i, _)| i).collect();
+    let closing: Vec<usize> = file.match_indices(&close).map(|(i, _)| i).collect();
 
     let size = if !opening.is_empty() {
-        OPEN_CODE.chars().count()
+        open.chars().count()
     } else {
         0
     };
@@ -90,7 +96,7 @@ fn preprocess(filepath: &str, lua: &Lua, module: bool) -> LuaResult<()> {
 
         if !files.contains_key(name.replace(".py", "")).unwrap() {
             files.set(name, true).unwrap();
-            preprocess(&name, lua, true)?
+            preprocess(&name, lua, level, true)?
         }
 
         Ok(())
@@ -136,7 +142,7 @@ fn preprocess(filepath: &str, lua: &Lua, module: bool) -> LuaResult<()> {
 
     file_content.push_str(&file[closing.last().unwrap_or(&&0) + size..]);
 
-    let fullpath = format!("output/{filepath}");
+    let fullpath = format!("{OUTPUT_DIR}/{filepath}");
     if let Some(parent) = std::path::Path::new(&fullpath).parent() {
         maperror!(
             std::fs::create_dir_all(parent),
@@ -195,20 +201,23 @@ fn preprocess(filepath: &str, lua: &Lua, module: bool) -> LuaResult<()> {
 fn run_preprocessor(filepath: &str) -> LuaResult<()> {
     let lua = Lua::new();
     lua.globals().set("files", lua.create_table()?)?;
-    preprocess(filepath, &lua, false)
+    preprocess(filepath, &lua, 2, false)?;
+    preprocess(filepath, &lua, 1, false)
 }
 
 fn main() -> LuaResult<()> {
     let filepath = std::env::args().nth(1);
+
     if let Some(filepath) = filepath {
         pprintln!(format!("Parsing: {filepath}"));
+
         if let Err(e) = run_preprocessor(&filepath) {
             eprintln!("{e}");
         } else if DEBUG {
             pprintln!("Done. Now running with python3...");
             #[cfg(debug_assertions)]
             std::process::Command::new("python3")
-                .arg(format!("output/{filepath}"))
+                .arg(format!("{OUTPUT_DIR}/{filepath}"))
                 .spawn()?;
         } else {
             pprintln!("Done.");
